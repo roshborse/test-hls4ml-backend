@@ -1,0 +1,6 @@
+.metadata
+RemoteSystemsTempFiles
+*.log
+*_platform
+*_standalone
+*_standalone_bsp

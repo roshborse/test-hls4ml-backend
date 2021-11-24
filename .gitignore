@@ -1,0 +1,4 @@
+*.npy
+__pycache__
+*.tar.gz
+test_backend_with_tb_axi_master
