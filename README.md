@@ -5,6 +5,7 @@ This is a workspace for testing the integration of the Vivado Accelerator AXI-ma
 The _hls4ml_ fork and branch that we use in this workspace is https://github.com/GiuseppeDiGuglielmo/hls4ml/tree/gdg/axi-m
 ```
 conda env create -f environment.yml
+pip install qkeras==0.9.0
 #pip uninstall hls4ml
 pip install git+https://github.com/GiuseppeDiGuglielmo/hls4ml.git@gdg/axi-m#egg=hls4ml[profiling]
 ```
