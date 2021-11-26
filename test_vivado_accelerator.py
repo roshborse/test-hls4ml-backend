@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 from hls4ml.converters import convert_from_keras_model
 from tensorflow.keras.utils import to_categorical
@@ -12,8 +13,6 @@ from tensorflow.keras.regularizers import l1
 from qkeras.qlayers import QDense, QActivation
 from qkeras.quantizers import quantized_bits, quantized_relu
 from callbacks import all_callbacks
-
-import os
 
 os.environ['PATH'] = '/tools/Xilinx/Vivado/2019.1/bin:' + os.environ['PATH']
 
@@ -53,7 +52,7 @@ model.add(Activation(activation='softmax', name='softmax'))
 # Training
 from tensorflow_model_optimization.python.core.sparsity.keras import prune, pruning_callbacks, pruning_schedule
 from tensorflow_model_optimization.sparsity.keras import strip_pruning
-pruning_params = {"pruning_schedule" : pruning_schedule.ConstantSparsity(0.75, begin_step=2000, frequency=100)}
+pruning_params = {'pruning_schedule' : pruning_schedule.ConstantSparsity(0.75, begin_step=2000, frequency=100)}
 model = prune.prune_low_magnitude(model, **pruning_params)
 
 train = not os.path.exists('model/KERAS_check_best_model.h5')
@@ -104,7 +103,7 @@ hls_config['LayerName']['fc3']['ReuseFactor'] = 64
 input_data = os.path.join(os.getcwd(), 'X_test.npy')
 output_predictions = os.path.join(os.getcwd(), 'y_qkeras.npy')
 
-hls_model_axi_master = convert_from_keras_model(model=model, 
+hls_model = convert_from_keras_model(model=model, 
                                      backend='VivadoAccelerator',
                                      board='pynq-z1',
                                      io_type='io_stream',
@@ -112,56 +111,69 @@ hls_model_axi_master = convert_from_keras_model(model=model,
                                      driver='c',
                                      input_data_tb='X_test.npy',
                                      output_data_tb='y_qkeras.npy',
-                                     hls_config=hls_config, output_dir="test_backend_with_tb_axi_master")
+                                     hls_config=hls_config, output_dir='test_backend_with_tb_axi_master')
 
-hls_model_axi_master.build(csim=False, synth=True, export=True)
+_ = hls_model.compile()
 
-# Write inference data in a header file for baremetal application 
-def write_header_file(X, y, y_keras, n_samples, filename="data.h"):
-    header_file = open(filename, "w")
-    (n_X_samples, n_X_inputs) = X.to_numpy().shape
-    (n_y_samples, n_y_outputs) = y.shape
-    (n_y_keras_samples, n_y_keras_outputs) = y_keras.shape
+y_hls = hls_model.predict(np.ascontiguousarray(X.to_numpy()))
 
-    header_file.write("#ifndef __DATA_H__\n")
-    header_file.write("#define __DATA_H__\n")
-    header_file.write("/* ouf of {} */\n".format(n_X_samples))
-    header_file.write("#define N_SAMPLES {}\n".format(n_samples))
-    header_file.write("\n")
-    header_file.write("#define N_X_INPUTS {}\n".format(n_X_inputs))
-    header_file.write("\n")
-    header_file.write("const float src_data[N_SAMPLES*N_X_INPUTS] = {\n")
-    for s in range(n_samples):
-        header_file.write("    ")
-        for i in range(n_X_inputs):
-            header_file.write("{}, ".format(X.to_numpy()[s][i]))
-        header_file.write("\n")
-    header_file.write("};\n")
-    header_file.write("\n")
-    header_file.write("#define N_Y_OUTPUTS {}\n".format(n_y_outputs))
-    header_file.write("\n")
-    header_file.write("const float gld_data[N_SAMPLES*N_Y_OUTPUTS] = {\n")
-    for s in range(n_samples):
-        header_file.write("    ")
-        for o in range(n_y_outputs):
-            header_file.write("{}, ".format(y[s][o]))
-        header_file.write("\n")
-    header_file.write("};\n")
-    header_file.write("\n")
-    header_file.write("#define N_Y_KERAS_OUTPUTS {}\n".format(n_y_keras_outputs))
-    header_file.write("")
-    header_file.write("const float dst_data[N_SAMPLES*N_Y_KERAS_OUTPUTS] = {\n")
-    for s in range(n_samples):
-        header_file.write("    ")
-        for o in range(n_y_keras_outputs):
-            header_file.write("{}, ".format(y_keras[s][o]))
-        header_file.write("\n")
-    header_file.write("};\n")
-    header_file.write("#endif\n")
-    header_file.close()
+if len(sys.argv) == 2 and sys.argv[1] == 'profile':
+    print('Number of arguments:', len(sys.argv), 'arguments.')
 
-write_header_file(X, y, y_keras, 8, "sdk/common/data.h")
+    from sklearn.metrics import accuracy_score
+    print('-----------------------------------')
+    print('Keras  Accuracy: {}'.format(accuracy_score(np.argmax(y, axis=1), np.argmax(y_keras, axis=1))))
+    print('hls4ml Accuracy: {}'.format(accuracy_score(np.argmax(y, axis=1), np.argmax(y_hls, axis=1))))
+    print('-----------------------------------')
+else:
+    hls_model.build(csim=False, synth=True, export=True)
 
-hls4ml.report.read_vivado_report('test_backend_with_tb_axi_master/')
-
-hls4ml.templates.VivadoAcceleratorBackend.make_bitfile(hls_model_axi_master)
+    # Write inference data in a header file for baremetal application 
+    def write_header_file(X, y, y_keras, n_samples, filename='data.h'):
+        header_file = open(filename, 'w')
+        (n_X_samples, n_X_inputs) = X.to_numpy().shape
+        (n_y_samples, n_y_outputs) = y.shape
+        (n_y_keras_samples, n_y_keras_outputs) = y_keras.shape
+    
+        header_file.write('#ifndef __DATA_H__\n')
+        header_file.write('#define __DATA_H__\n')
+        header_file.write('/* ouf of {} */\n'.format(n_X_samples))
+        header_file.write('#define N_SAMPLES {}\n'.format(n_samples))
+        header_file.write('\n')
+        header_file.write('#define N_X_INPUTS {}\n'.format(n_X_inputs))
+        header_file.write('\n')
+        header_file.write('const float src_data[N_SAMPLES*N_X_INPUTS] = {\n')
+        for s in range(n_samples):
+            header_file.write('    ')
+            for i in range(n_X_inputs):
+                header_file.write('{}, '.format(X.to_numpy()[s][i]))
+            header_file.write('\n')
+        header_file.write('};\n')
+        header_file.write('\n')
+        header_file.write('#define N_Y_OUTPUTS {}\n'.format(n_y_outputs))
+        header_file.write('\n')
+        header_file.write('const float gld_data[N_SAMPLES*N_Y_OUTPUTS] = {\n')
+        for s in range(n_samples):
+            header_file.write('    ')
+            for o in range(n_y_outputs):
+                header_file.write('{}, '.format(y[s][o]))
+            header_file.write('\n')
+        header_file.write('};\n')
+        header_file.write('\n')
+        header_file.write('#define N_Y_KERAS_OUTPUTS {}\n'.format(n_y_keras_outputs))
+        header_file.write('')
+        header_file.write('const float dst_data[N_SAMPLES*N_Y_KERAS_OUTPUTS] = {\n')
+        for s in range(n_samples):
+            header_file.write('    ')
+            for o in range(n_y_keras_outputs):
+                header_file.write('{}, '.format(y_keras[s][o]))
+            header_file.write('\n')
+        header_file.write('};\n')
+        header_file.write('#endif\n')
+        header_file.close()
+    
+    write_header_file(X, y, y_keras, 8, 'sdk/common/data.h')
+    
+    hls4ml.report.read_vivado_report('test_backend_with_tb_axi_master/')
+    
+    hls4ml.templates.VivadoAcceleratorBackend.make_bitfile(hls_model)

@@ -11,7 +11,13 @@ A few notes
 - The [sdk](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/tree/main/sdk) directory has to be generated on the fly, right now it is hardcoded at top level.
 - In the reference hls4ml fork and branch, the write driver is currently [disabled](https://github.com/GiuseppeDiGuglielmo/hls4ml/blob/gdg/axi-m/hls4ml/writer/vivado_accelerator_writer.py#L346)
 
-## Quick Run
+## Profile the Model
+```
+make run-profile
+```
+
+
+## Run the Hardware/Software Flow
 ```
 make run
 cd sdk 

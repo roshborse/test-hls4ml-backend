@@ -5,6 +5,11 @@ run:
 	python test_vivado_accelerator.py
 .PHONY: run	
 
+run-profile:
+	python test_vivado_accelerator.py profile
+.PHONY: run-profile	
+
+
 clean:
 	rm -f classes.npy
 	rm -rf training_dir
