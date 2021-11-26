@@ -4,3 +4,4 @@ RemoteSystemsTempFiles
 *_platform
 *_standalone
 *_standalone_bsp
+.sdk

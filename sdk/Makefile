@@ -11,6 +11,7 @@ help:
 sdk: --setup
 	rm -f $(DESIGN)_standalone/src/helloworld.c
 	cd  $(DESIGN)_standalone/src && ln -s ../../common/main.c main.c
+	cd  $(DESIGN)_standalone/src && ln -s ../../common/data.h data.h
 .PHONY: sdk
 
 gui:
@@ -21,6 +22,7 @@ clean:
 	rm -rf $(DESIGN)_platform
 	rm -rf $(DESIGN)_standalone
 	rm -rf $(DESIGN)_standalone_bsp
+	rm -rf RemoteSystemsTempFiles
 	rm -rf .Xil
 	rm -rf .metadata
 	rm -f *.log

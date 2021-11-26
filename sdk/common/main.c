@@ -5,10 +5,11 @@
  */
 
 #include "xmyproject_axi.h"  /* accelerator */
-#include "stdio.h"       /* printf */
+#include "stdio.h"       /* PRINTF */
 #include "unistd.h"      /* sleep */
 #include "stdlib.h"
 #include "malloc.h"
+#include "assert.h"
 #include "xil_io.h"      /* peripheral read/write wrappers */
 #include "xtime_l.h"     /* to measure performance of the system */
 #include "platform.h"    /* platform init/cleanup functions */
@@ -16,58 +17,19 @@
 #include "xil_printf.h"  /* UART debug print functions */
 #include "xparameters.h" /* peripherals base addresses */
 
+/* TODO: move the following code in separate header files */
+#include "data.h"
 
-//#include "src.h"
-//#include "dst.h"
-
-#define src_SAMPLE_COUNT 1
-#define src_FEATURE_COUNT 16
-#define dst_SAMPLE_COUNT 1
-#define dst_FEATURE_COUNT 5
-
-float src_data[src_SAMPLE_COUNT*src_FEATURE_COUNT];
-float dst_data[dst_SAMPLE_COUNT*dst_FEATURE_COUNT];
-
+#define ACC_NAME "Myaccelerator"
 
 #define __DEBUG__
 
-#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE_TO_BINARY(byte)  \
-  (byte & 0x80 ? '1' : '0'), \
-  (byte & 0x40 ? '1' : '0'), \
-  (byte & 0x20 ? '1' : '0'), \
-  (byte & 0x10 ? '1' : '0'), \
-  (byte & 0x08 ? '1' : '0'), \
-  (byte & 0x04 ? '1' : '0'), \
-  (byte & 0x02 ? '1' : '0'), \
-  (byte & 0x01 ? '1' : '0')
+#define MAX_PRINT_ELEMENTS (16)
 
-#define SHORT_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c"
-#define SHORT_TO_BINARY(byte)  \
-  (byte & 0x8000 ? '1' : '0'), \
-  (byte & 0x4000 ? '1' : '0'), \
-  (byte & 0x2000 ? '1' : '0'), \
-  (byte & 0x1000 ? '1' : '0'), \
-  (byte & 0x800 ? '1' : '0'), \
-  (byte & 0x400 ? '1' : '0'), \
-  (byte & 0x200 ? '1' : '0'), \
-  (byte & 0x100 ? '1' : '0'), \
-  (byte & 0x80 ? '1' : '0'), \
-  (byte & 0x40 ? '1' : '0'), \
-  (byte & 0x20 ? '1' : '0'), \
-  (byte & 0x10 ? '1' : '0'), \
-  (byte & 0x08 ? '1' : '0'), \
-  (byte & 0x04 ? '1' : '0'), \
-  (byte & 0x02 ? '1' : '0'), \
-  (byte & 0x01 ? '1' : '0')
+#define PRINTF printf
 
-
-#define MAX_PRINT_ELEMENTS (2)
-
-#define ITERATION_FACTOR (1000)
-
-const unsigned INPUT_N_ELEMENTS = src_SAMPLE_COUNT*src_FEATURE_COUNT;
-const unsigned OUTPUT_N_ELEMENTS = dst_SAMPLE_COUNT*dst_FEATURE_COUNT;
+const unsigned INPUT_N_ELEMENTS = N_SAMPLES * N_X_INPUTS;
+const unsigned OUTPUT_N_ELEMENTS = N_SAMPLES * N_Y_OUTPUTS;
 
 #if 0
 /* base address for the accelerator */
@@ -75,34 +37,31 @@ const unsigned OUTPUT_N_ELEMENTS = dst_SAMPLE_COUNT*dst_FEATURE_COUNT;
 
 /* data offsets and pointers */
 #define SRC_BUFFER_BASE (MEM_BASE_ADDR + 0x00000000)
-unsigned char *src_mem = (unsigned char*)SRC_BUFFER_BASE;
+float *inputs_mem = (float*)SRC_BUFFER_BASE;
 
 #define GLD_BUFFER_BASE (MEM_BASE_ADDR + 0x00010000)
-unsigned char *gld_mem = (unsigned char*)GLD_BUFFER_BASE;
+float *reference_mem = (float*)GLD_BUFFER_BASE;
 
 #define DST_BUFFER_BASE (MEM_BASE_ADDR + 0x00020000)
-unsigned char *dst_mem = (unsigned char*)DST_BUFFER_BASE;
+float *outputs_mem = (float*)DST_BUFFER_BASE;
 #else
-float *src_mem;
-float *gld_mem;
-float *dst_mem;
+float *inputs_mem;
+float *outputs_mem;
+float *reference_mem;
 #endif
 
 /* accelerator configuration */
-XMyproject_axi do_anomaly_detector;
-XMyproject_axi_Config *do_anomaly_detector_cfg;
+XMyproject_axi accelerator;
+XMyproject_axi_Config *accelerator_cfg;
 
 /* accelerator initialization routine */
-void init_accelerators()
-{
-    printf("INFO: Initializing accelerator\n\r");
-    do_anomaly_detector_cfg = XMyproject_axi_LookupConfig(XPAR_MYPROJECT_AXI_0_DEVICE_ID);
-    if (do_anomaly_detector_cfg)
-    {
-        int status  = XMyproject_axi_CfgInitialize(&do_anomaly_detector, do_anomaly_detector_cfg);
-        if (status != XST_SUCCESS)
-        {
-            printf("ERROR: Initializing accelerator\n\r");
+void init_accelerators() {
+    PRINTF("INFO: Initializing accelerator\n\r");
+    accelerator_cfg = XMyproject_axi_LookupConfig(XPAR_MYPROJECT_AXI_0_DEVICE_ID);
+    if (accelerator_cfg) {
+        int status  = XMyproject_axi_CfgInitialize(&accelerator, accelerator_cfg);
+        if (status != XST_SUCCESS) {
+            PRINTF("ERROR: Initializing accelerator\n\r");
         }
     }
 }
@@ -126,218 +85,176 @@ void init_accelerators()
 //#endif
 
 /* golden model of the accelerator in software */
-int anomaly_detector_sw(float *src, float *dst, unsigned input_n_elements, unsigned output_n_elements)
-{
-    printf("INFO: Golden results are pre-compiled. It would be nice to run a software model here.\n");
+int accelerator_sw(float *src, float *dst, unsigned input_n_elements, unsigned output_n_elements) {
+	PRINTF("INFO: Golden results are pre-compiled. It would be nice to run a software model here.\r\n");
     // See src.h and dst.h for input and golden output respectively.
     return 0;
 }
 
 /* profiling function */
-double get_elapsed_time(XTime start, XTime stop)
-{
+double get_elapsed_time(XTime start, XTime stop) {
     return 1.0 * (stop - start) / (COUNTS_PER_SECOND);
 }
 
 /* dump data to the console */
-void dump_data(const char* label, unsigned char* data, unsigned sample_count, unsigned feature_count, unsigned print_hex, unsigned print_bin)
-{
-    printf("INFO:   %s[%u][%u]:\n\r", label, sample_count, feature_count);
+void dump_data(const char* label, float* data, unsigned n_samples, unsigned feature_count) {
+	PRINTF("INFO:   %s[%u][%u]:\n\r", label, n_samples, feature_count);
     /* print at most MAX_PRINT_ELEMENTS */
-    for (unsigned i = 0; i < sample_count && i < MAX_PRINT_ELEMENTS; i++)
-    {
-        printf("INFO:     [%u] ", i);
-        if (print_hex)
-            for (unsigned j = 0; j < feature_count; j++)
-            {
-                unsigned index = i * feature_count + j;
-                printf("%02X ", data[index]);
-            }
-        if (print_bin)
-            for (unsigned j = 0; j < feature_count; j++)
-            {
-                unsigned index = i * feature_count + j;
-                printf(""BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(data[index]));
-                printf(" ");
-            }
-        printf("\n\r");
-    }
-    for (unsigned i = sample_count - MAX_PRINT_ELEMENTS; i < sample_count; i++)
-    {
-        printf("INFO:     [%u] ", i);
-        if (print_hex)
-            for (unsigned j = 0; j < feature_count; j++)
-            {
-                unsigned index = i * feature_count + j;
-                printf("%02X ", data[index]);
-            }
-        if (print_bin)
-            for (unsigned j = 0; j < feature_count; j++)
-            {
-                unsigned index = i * feature_count + j;
-                printf(""BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(data[index]));
-                printf(" ");
-            }
-        printf("\n\r");
+    for (unsigned i = 0; i < n_samples && i < MAX_PRINT_ELEMENTS; i++) {
+    	PRINTF("INFO:     [%u] ", i);
+        for (unsigned j = 0; j < feature_count; j++) {
+        	unsigned index = i * feature_count + j;
+        	PRINTF("%f ", data[index]);
+        }
+        PRINTF("\r\n");
     }
 }
 
 /* the top of the hill :-) */
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
 
     XTime start, stop;
     double calibration_time;
-    double sw_elapsed;
-    char __attribute__ ((unused)) dummy; /* dummy input */
-
-    int hw_errors;
+    double sw_elapsed = 0;
     double hw_elapsed = 0;
     double cache_elapsed = 0;
+    unsigned hw_errors;
 
-    printf("\n\r");
-    printf("INFO: ===============================================\n\r");
-    printf("INFO: Myaccelerator (w/ polling)\n\r");
-    printf("INFO: ===============================================\n\r");
+    char __attribute__ ((unused)) dummy; /* dummy input */
 
     /* initialize platform (uart and caches) */
     init_platform();
 
+    PRINTF("\n\r");
+    PRINTF("INFO: ===============================================\n\r");
+    PRINTF("INFO: "ACC_NAME" (w/ polling)\n\r");
+    PRINTF("INFO: ===============================================\n\r");
+
     init_accelerators();
 
-    src_mem = malloc(INPUT_N_ELEMENTS * sizeof(unsigned char));
-    dst_mem = malloc(OUTPUT_N_ELEMENTS * sizeof(unsigned char));
-    gld_mem = malloc(OUTPUT_N_ELEMENTS * sizeof(unsigned char));
+    inputs_mem = malloc(INPUT_N_ELEMENTS * sizeof(float));
+    outputs_mem = malloc(OUTPUT_N_ELEMENTS * sizeof(float));
+    reference_mem = malloc(OUTPUT_N_ELEMENTS * sizeof(float));
 
     /* calibration */
     XTime_GetTime(&start);
     sleep(1);
     XTime_GetTime(&stop);
     calibration_time = get_elapsed_time(start, stop);
-    printf("INFO: Time calibration for one second (%lf sec)\n\r", calibration_time);
+    PRINTF("INFO: Time calibration for one second (%lf sec)\n\r", calibration_time);
 
     /* initialize memory */
-    printf("INFO: Initialize memory\n\r");
-    printf("INFO:   - Sample count: %u\n\r", src_SAMPLE_COUNT); /* Same as dst_SAMPLE_COUNT */
-    printf("INFO:   - Input-feature count: %u\n\r", src_FEATURE_COUNT);
-    printf("INFO:   - Output-class count: %u\n\r", dst_FEATURE_COUNT);
-    printf("INFO:   - Data size: %lu B\n\r", sizeof(float));
-    printf("INFO:   - Total input size: %lu B, %.2f KB, %.2f MB\n\r", src_FEATURE_COUNT * src_SAMPLE_COUNT * sizeof(float), (src_FEATURE_COUNT * src_SAMPLE_COUNT * sizeof(float)) / (float)1024, (src_FEATURE_COUNT * src_SAMPLE_COUNT * sizeof(float)) / (float)(1024*1024));
-    printf("INFO:   - Total output size: %lu B, %.2f KB, %.2f MB\n\r", dst_FEATURE_COUNT * dst_SAMPLE_COUNT * sizeof(float), (dst_FEATURE_COUNT * dst_SAMPLE_COUNT * sizeof(float)) / (float)1024, (dst_FEATURE_COUNT * dst_SAMPLE_COUNT * sizeof(float)) / (float)(1024*1024));
+    PRINTF("INFO: Initialize memory\n\r");
+    PRINTF("INFO:   - Samples count: %u\n\r", N_SAMPLES); /* Same as dst_SAMPLE_COUNT */
+    PRINTF("INFO:   - Inputs count: %u\n\r", N_X_INPUTS);
+    PRINTF("INFO:   - Outputs count: %u\n\r", N_Y_OUTPUTS);
+    PRINTF("INFO:   - Data size: %u B\n\r", sizeof(float));
+    PRINTF("INFO:   - Total input size: %u B, %.2f KB, %.2f MB\n\r", N_X_INPUTS * N_SAMPLES * sizeof(float), (N_X_INPUTS * N_SAMPLES * sizeof(float)) / (float)1024, (N_X_INPUTS * N_SAMPLES * sizeof(float)) / (float)(1024*1024));
+    PRINTF("INFO:   - Total output size: %u B, %.2f KB, %.2f MB\n\r", N_Y_OUTPUTS * N_SAMPLES * sizeof(float), (N_Y_OUTPUTS * N_SAMPLES * sizeof(float)) / (float)1024, (N_Y_OUTPUTS * N_SAMPLES * sizeof(float)) / (float)(1024*1024));
 
     // Set Heap Size in ldscript.ld to 0x1000000 (16MB)
     //malloc_stats();
 
     for (int i = 0; i < INPUT_N_ELEMENTS; i++) {
-        src_mem[i] = src_data[i];
+        inputs_mem[i] = src_data[i];
     }
     for (int i = 0; i < OUTPUT_N_ELEMENTS; i++) {
-        gld_mem[i] = dst_data[i];
-        dst_mem[i] = 0x0;
+        reference_mem[i] = dst_data[i];
+        outputs_mem[i] = 0x0;
     }
 
     /* ****** SOFTWARE REFERENCE ****** */
 #ifdef __DEBUG__
-    printf("INFO: Start SW accelerator\n\r");
+    PRINTF("INFO: Start SW accelerator\n\r");
 #endif
     XTime_GetTime(&start);
 
-    anomaly_detector_sw(src_mem, gld_mem, INPUT_N_ELEMENTS, OUTPUT_N_ELEMENTS);
+    accelerator_sw(inputs_mem, reference_mem, INPUT_N_ELEMENTS, OUTPUT_N_ELEMENTS);
     XTime_GetTime(&stop);
     sw_elapsed = get_elapsed_time(start, stop);
 
 #ifdef __DEBUG__
-    printf("INFO: Number of accelerator invocations: %u (= %u * %u)\n\r", ITERATION_FACTOR*src_SAMPLE_COUNT, ITERATION_FACTOR, src_SAMPLE_COUNT);
-    printf("INFO:   - Iteration factor: %u\n\r", ITERATION_FACTOR);
-    printf("INFO:   - Sample count : %u\n\r", src_SAMPLE_COUNT);
+    PRINTF("INFO: Number of accelerator invocations: %u\n\r", N_SAMPLES);
 #endif
 #if 1
     /* ****** ACCELERATOR ****** */
-    xil_printf("INFO: Press any key to start the accelerator: ");
+    PRINTF("INFO: Press any key to start the accelerator: ");
     dummy = inbyte();
-    printf("\n\rINFO: \n\r");
+    PRINTF("\n\rINFO: \n\r");
 
 #ifdef __DEBUG__
-    printf("INFO: Configure and start accelerator\n\r");
+    PRINTF("INFO: Configure and start accelerator\n\r");
 #endif
 
     XTime_GetTime(&start);
-    Xil_DCacheFlushRange((UINTPTR)src_mem, INPUT_N_ELEMENTS * sizeof(unsigned char));
-    Xil_DCacheFlushRange((UINTPTR)dst_mem, OUTPUT_N_ELEMENTS * sizeof(unsigned char));
-    Xil_DCacheFlushRange((UINTPTR)gld_mem, OUTPUT_N_ELEMENTS * sizeof(unsigned char));
+    Xil_DCacheFlushRange((UINTPTR)inputs_mem, INPUT_N_ELEMENTS * sizeof(float));
+    Xil_DCacheFlushRange((UINTPTR)outputs_mem, OUTPUT_N_ELEMENTS * sizeof(float));
+    Xil_DCacheFlushRange((UINTPTR)reference_mem, OUTPUT_N_ELEMENTS * sizeof(float));
     XTime_GetTime(&stop);
     cache_elapsed = get_elapsed_time(start, stop);
-#if 1
-    for (unsigned j = 0; j < src_SAMPLE_COUNT; j++) {
 
-    	float *src_mem_i = src_mem + j * src_FEATURE_COUNT;
-    	float *dst_mem_i = dst_mem + j * dst_FEATURE_COUNT;
+    for (unsigned j = 0; j < N_SAMPLES; j++) {
+    	float *inputs_mem_i = inputs_mem + j * N_X_INPUTS;
+    	float *outputs_mem_i = outputs_mem + j * N_Y_OUTPUTS;
 
-    	//for (unsigned i = 0; i < src_SAMPLE_COUNT; i++) {
+    	/* Configure the accelerator */
+    	XTime_GetTime(&start);
+        XMyproject_axi_Set_in_r(&accelerator, (unsigned)inputs_mem_i);
+    	XMyproject_axi_Set_out_r(&accelerator, (unsigned)outputs_mem_i);
 
-    		/* Configure the accelerator */
-    		XTime_GetTime(&start);
-    		XMyproject_axi_Set_in_r(&do_anomaly_detector, (unsigned)src_mem_i);
-    		XMyproject_axi_Set_out_r(&do_anomaly_detector, (unsigned)dst_mem_i);
+    	XMyproject_axi_Start(&accelerator);
 
-    		XMyproject_axi_Start(&do_anomaly_detector);
+    	/* polling */
+    	while (!XMyproject_axi_IsDone(&accelerator));
 
-    		/* polling */
-    		while (!XMyproject_axi_IsDone(&do_anomaly_detector));
-
-    		/* get error status */
-    		//hw_flags = XMyproject_axi_Get_return(&do_anomaly_detector);
-    		XTime_GetTime(&stop);
-    		hw_elapsed += get_elapsed_time(start, stop);
-
-    	//	src_mem_i += src_FEATURE_COUNT;
-    	//	dst_mem_i += dst_FEATURE_COUNT;
-    	//}
+    	/* get error status */
+    	//hw_flags = XMyproject_axi_Get_return(&accelerator);
+    	XTime_GetTime(&stop);
+    	hw_elapsed += get_elapsed_time(start, stop);
     }
-#endif
+
     XTime_GetTime(&start);
-    Xil_DCacheFlushRange((UINTPTR)dst_mem, OUTPUT_N_ELEMENTS * sizeof(unsigned char));
+    Xil_DCacheFlushRange((UINTPTR)outputs_mem, OUTPUT_N_ELEMENTS * sizeof(float));
     XTime_GetTime(&stop);
     cache_elapsed += get_elapsed_time(start, stop);
 
-    printf("INFO: Accelerator done!");
-#endif
+    PRINTF("INFO: Accelerator done!");
+
     /* ****** VALIDATION ****** */
 
 #ifdef __DEBUG__
-    printf("INFO: ================== Validation =================\n\r");
-    printf("INFO: Dump data\n\r");
-    dump_data("src", (unsigned char*)src_mem, src_SAMPLE_COUNT, src_FEATURE_COUNT, 1, 0);
-    dump_data("sw_dst", (unsigned char*)gld_mem, dst_SAMPLE_COUNT, dst_FEATURE_COUNT, 1, 0);
-    dump_data("hw_dst", (unsigned char*)dst_mem, dst_SAMPLE_COUNT, dst_FEATURE_COUNT, 1, 0);
+    PRINTF("INFO: ================== Validation =================\n\r");
+    PRINTF("INFO: Dump data\n\r");
+    dump_data("inputs_mem", inputs_mem, N_SAMPLES, N_X_INPUTS);
+    dump_data("outputs_mem", outputs_mem, N_SAMPLES, N_Y_OUTPUTS);
+    dump_data("reference_mem", reference_mem, N_SAMPLES, N_Y_OUTPUTS);
 #endif
 
-    printf("INFO: Software execution time: %f sec\n\r", sw_elapsed);
+    PRINTF("INFO: Software execution time: %f sec\n\r", sw_elapsed);
 
-    printf("INFO: Total acceleration execution time (%d inferences): %f sec\n\r", ITERATION_FACTOR*src_SAMPLE_COUNT, hw_elapsed);
-    printf("INFO: Per-inference execution time (average): %.12f sec (%f ns)\n\r", hw_elapsed / (ITERATION_FACTOR * src_SAMPLE_COUNT), (hw_elapsed*1000.0) / (ITERATION_FACTOR * src_SAMPLE_COUNT));
-    printf("INFO: Cache flush time: %f sec\n\r", cache_elapsed);
-    printf("INFO: Accelerator/software speedup (the software is fake so this does not count...): %.2f X\n\r", (sw_elapsed >= (hw_elapsed+cache_elapsed))?(sw_elapsed/(hw_elapsed+cache_elapsed)):-((hw_elapsed+cache_elapsed)/sw_elapsed));
+    PRINTF("INFO: Total acceleration execution time (%d inferences): %f sec\n\r", N_SAMPLES, hw_elapsed);
+    PRINTF("INFO: Per-inference execution time (average): %.12f sec (%f ns)\n\r", hw_elapsed / (N_SAMPLES), (hw_elapsed*1000.0) / (N_SAMPLES));
+    PRINTF("INFO: Cache flush time: %f sec\n\r", cache_elapsed);
+    PRINTF("INFO: Accelerator/software speedup (the software is fake so this does not count...): %.2f X\n\r", (sw_elapsed >= (hw_elapsed+cache_elapsed))?(sw_elapsed/(hw_elapsed+cache_elapsed)):-((hw_elapsed+cache_elapsed)/sw_elapsed));
 
     /* Accelerator validation */
     hw_errors = 0;
 #if 1
-    for (int i = 0; i < OUTPUT_N_ELEMENTS; i++)
-    {
-        if (dst_mem[i] != gld_mem[i])
-        {
-            printf("ERROR: [%d]: Accelerator hw %lX != sw %lX\n\r", i, dst_mem[i], gld_mem[i]);
+    for (int i = 0; i < OUTPUT_N_ELEMENTS; i++) {
+        if (outputs_mem[i] != reference_mem[i]) {
+            PRINTF("ERROR: [%d]: Accelerator hw %f != sw %f\n\r", i, outputs_mem[i], reference_mem[i]);
             hw_errors++;
         }
     }
-    printf("INFO: Total errors = %d (out of %d elements)\n\r", hw_errors, OUTPUT_N_ELEMENTS);
+    PRINTF("INFO: Total errors = %d (out of %d elements)\n\r", hw_errors, OUTPUT_N_ELEMENTS);
     if (hw_errors > 0)
-        printf("INFO: Accelerator validation: FAIL\n\r");
+        PRINTF("INFO: Accelerator validation: FAIL\n\r");
     else
-        printf("INFO: Accelerator validation: PASS!\n\r");
+        PRINTF("INFO: Accelerator validation: PASS!\n\r");
 #endif
-    printf("INFO: Validation done!\n\r");
-    printf("INFO: ===============================================\n\r");
+    PRINTF("INFO: Validation done!\n\r");
+#endif
+    PRINTF("INFO: ===============================================\n\r");
 
     cleanup_platform();
 

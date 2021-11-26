@@ -17,6 +17,7 @@ import os
 
 os.environ['PATH'] = '/tools/Xilinx/Vivado/2019.1/bin:' + os.environ['PATH']
 
+# Load and scale dataset
 data = fetch_openml('hls4ml_lhc_jets_hlf')
 X, y = data['data'], data['target']
 le = LabelEncoder()
@@ -30,6 +31,7 @@ np.save('y_test.npy', y_test)
 np.save('X_test.npy', X_test)
 np.save('classes.npy', le.classes_, allow_pickle=True)
 
+# Model
 model = Sequential()
 model.add(QDense(64, input_shape=(16,), name='fc1',
                  kernel_quantizer=quantized_bits(6,0,alpha=1), bias_quantizer=quantized_bits(6,0,alpha=1),
@@ -48,6 +50,7 @@ model.add(QDense(5, name='output',
                  kernel_initializer='lecun_uniform', kernel_regularizer=l1(0.0001)))
 model.add(Activation(activation='softmax', name='softmax'))
 
+# Training
 from tensorflow_model_optimization.python.core.sparsity.keras import prune, pruning_callbacks, pruning_schedule
 from tensorflow_model_optimization.sparsity.keras import strip_pruning
 pruning_params = {"pruning_schedule" : pruning_schedule.ConstantSparsity(0.75, begin_step=2000, frequency=100)}
@@ -70,7 +73,8 @@ if train:
               callbacks = callbacks.callbacks)
     # Save the model again but with the pruning 'stripped' to use the regular layer types
     model = strip_pruning(model)
-    os.mkdir('model')
+    if not os.path.isdir('model'): 
+        os.mkdir('model')
     model.save('model/KERAS_check_best_model.h5')
 else:
     from tensorflow.keras.models import load_model
@@ -79,9 +83,11 @@ else:
     _add_supported_quantized_objects(co)
     model = load_model('model/KERAS_check_best_model.h5', custom_objects=co)
 
-y_keras = model.predict(X)
+# Prediction
+y_keras = model.predict(X.to_numpy())
 np.save('y_qkeras.npy', y_keras)
 
+# hls4ml
 import hls4ml
 hls4ml.model.optimizer.OutputRoundingSaturationMode.layers = ['Activation']
 hls4ml.model.optimizer.OutputRoundingSaturationMode.rounding_mode = 'AP_RND'
@@ -98,39 +104,64 @@ hls_config['LayerName']['fc3']['ReuseFactor'] = 64
 input_data = os.path.join(os.getcwd(), 'X_test.npy')
 output_predictions = os.path.join(os.getcwd(), 'y_qkeras.npy')
 
-#hls_model_axi_stream = convert_from_keras_model(model=model, 
-#                                     backend='VivadoAccelerator',
-#                                     board='pynq-z2',
-#                                     io_type='io_stream',
-#                                     interface='axi_stream',
-#                                     hls_config=hls_config, output_dir="test_backend_with_tb_axi_stream")
-#
-#hls_model_axi_stream.build(csim=False, synth=True, export=True)
-#hls4ml.report.read_vivado_report('test_backend_with_tb_axi_stream/')
-#
-#hls4ml.templates.VivadoAcceleratorBackend.make_bitfile(hls_model_axi_stream)
-
-#hls_model_axi_lite = convert_from_keras_model(model=model, 
-#                                     backend='VivadoAccelerator',
-#                                     board='pynq-z2',
-#                                     io_type='io_stream',
-#                                     interface='axi_lite',
-#                                     hls_config=hls_config, output_dir="test_backend_with_tb_axi_lite")
-#
-#hls_model_axi_lite.build(csim=False, synth=False, export=True)
-#hls4ml.report.read_vivado_report('test_backend_with_tb_axi_lite/')
-#
-#hls4ml.templates.VivadoAcceleratorBackend.make_bitfile(hls_model_axi_lite)
-
 hls_model_axi_master = convert_from_keras_model(model=model, 
                                      backend='VivadoAccelerator',
-                                     board='ultra96v2',
+                                     board='pynq-z1',
                                      io_type='io_stream',
                                      interface='axi_master',
                                      driver='c',
+                                     input_data_tb='X_test.npy',
+                                     output_data_tb='y_qkeras.npy',
                                      hls_config=hls_config, output_dir="test_backend_with_tb_axi_master")
 
 hls_model_axi_master.build(csim=False, synth=True, export=True)
+
+# Write inference data in a header file for baremetal application 
+def write_header_file(X, y, y_keras, n_samples, filename="data.h"):
+    header_file = open(filename, "w")
+    (n_X_samples, n_X_inputs) = X.to_numpy().shape
+    (n_y_samples, n_y_outputs) = y.shape
+    (n_y_keras_samples, n_y_keras_outputs) = y_keras.shape
+
+    header_file.write("#ifndef __DATA_H__\n")
+    header_file.write("#define __DATA_H__\n")
+    header_file.write("/* ouf of {} */\n".format(n_X_samples))
+    header_file.write("#define N_SAMPLES {}\n".format(n_samples))
+    header_file.write("\n")
+    header_file.write("#define N_X_INPUTS {}\n".format(n_X_inputs))
+    header_file.write("\n")
+    header_file.write("const float src_data[N_SAMPLES*N_X_INPUTS] = {\n")
+    for s in range(n_samples):
+        header_file.write("    ")
+        for i in range(n_X_inputs):
+            header_file.write("{}, ".format(X.to_numpy()[s][i]))
+        header_file.write("\n")
+    header_file.write("};\n")
+    header_file.write("\n")
+    header_file.write("#define N_Y_OUTPUTS {}\n".format(n_y_outputs))
+    header_file.write("\n")
+    header_file.write("const float gld_data[N_SAMPLES*N_Y_OUTPUTS] = {\n")
+    for s in range(n_samples):
+        header_file.write("    ")
+        for o in range(n_y_outputs):
+            header_file.write("{}, ".format(y[s][o]))
+        header_file.write("\n")
+    header_file.write("};\n")
+    header_file.write("\n")
+    header_file.write("#define N_Y_KERAS_OUTPUTS {}\n".format(n_y_keras_outputs))
+    header_file.write("")
+    header_file.write("const float dst_data[N_SAMPLES*N_Y_KERAS_OUTPUTS] = {\n")
+    for s in range(n_samples):
+        header_file.write("    ")
+        for o in range(n_y_keras_outputs):
+            header_file.write("{}, ".format(y_keras[s][o]))
+        header_file.write("\n")
+    header_file.write("};\n")
+    header_file.write("#endif\n")
+    header_file.close()
+
+write_header_file(X, y, y_keras, 8, "sdk/common/data.h")
+
 hls4ml.report.read_vivado_report('test_backend_with_tb_axi_master/')
 
 hls4ml.templates.VivadoAcceleratorBackend.make_bitfile(hls_model_axi_master)

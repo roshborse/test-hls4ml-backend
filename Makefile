@@ -21,4 +21,5 @@ clean:
 	rm -f *.log
 	rm -f *.jou
 	rm -f *.str
+	rm -rf NA
 .PHONY: clean
