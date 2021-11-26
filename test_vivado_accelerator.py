@@ -83,7 +83,7 @@ else:
     model = load_model('model/KERAS_check_best_model.h5', custom_objects=co)
 
 # Prediction
-y_keras = model.predict(X.to_numpy())
+y_keras = model.predict(X_test)
 np.save('y_qkeras.npy', y_keras)
 
 # hls4ml
@@ -115,15 +115,15 @@ hls_model = convert_from_keras_model(model=model,
 
 _ = hls_model.compile()
 
-y_hls = hls_model.predict(np.ascontiguousarray(X.to_numpy()))
+y_hls = hls_model.predict(np.ascontiguousarray(X_test))
 
 if len(sys.argv) == 2 and sys.argv[1] == 'profile':
     print('Number of arguments:', len(sys.argv), 'arguments.')
 
     from sklearn.metrics import accuracy_score
     print('-----------------------------------')
-    print('Keras  Accuracy: {}'.format(accuracy_score(np.argmax(y, axis=1), np.argmax(y_keras, axis=1))))
-    print('hls4ml Accuracy: {}'.format(accuracy_score(np.argmax(y, axis=1), np.argmax(y_hls, axis=1))))
+    print('Keras  Accuracy: {}'.format(accuracy_score(np.argmax(y_test, axis=1), np.argmax(y_keras, axis=1))))
+    print('hls4ml Accuracy: {}'.format(accuracy_score(np.argmax(y_test, axis=1), np.argmax(y_hls, axis=1))))
     print('-----------------------------------')
 else:
     hls_model.build(csim=False, synth=True, export=True)
