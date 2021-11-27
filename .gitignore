@@ -5,3 +5,4 @@ test_backend_with_tb_axi_master
 NA
 *.jou
 *.log
+*.str

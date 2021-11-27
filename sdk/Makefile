@@ -15,7 +15,7 @@ sdk: --setup
 .PHONY: sdk
 
 gui:
-	xsdk --workspace .
+	xsdk --workspace . &
 .PHONY: gui
 
 clean:
@@ -27,3 +27,7 @@ clean:
 	rm -rf .metadata
 	rm -f *.log
 .PHONY: clean
+
+ultraclean: clean
+	rm -rf hdf/*.hdf
+.PHONY: ultraclean

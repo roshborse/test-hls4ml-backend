@@ -20,9 +20,7 @@
 /* TODO: move the following code in separate header files */
 #include "data.h"
 
-#define ACC_NAME "Myaccelerator"
-
-#define __DEBUG__
+//#define __DEBUG__
 
 #define MAX_PRINT_ELEMENTS (16)
 
@@ -31,24 +29,9 @@
 const unsigned INPUT_N_ELEMENTS = N_SAMPLES * N_X_INPUTS;
 const unsigned OUTPUT_N_ELEMENTS = N_SAMPLES * N_Y_OUTPUTS;
 
-#if 0
-/* base address for the accelerator */
-#define MEM_BASE_ADDR XPAR_PS7_DDR_0_S_AXI_BASEADDR
-
-/* data offsets and pointers */
-#define SRC_BUFFER_BASE (MEM_BASE_ADDR + 0x00000000)
-float *inputs_mem = (float*)SRC_BUFFER_BASE;
-
-#define GLD_BUFFER_BASE (MEM_BASE_ADDR + 0x00010000)
-float *reference_mem = (float*)GLD_BUFFER_BASE;
-
-#define DST_BUFFER_BASE (MEM_BASE_ADDR + 0x00020000)
-float *outputs_mem = (float*)DST_BUFFER_BASE;
-#else
-float *inputs_mem;
-float *outputs_mem;
-float *reference_mem;
-#endif
+float *inputs_mem = NULL;
+float *outputs_mem = NULL;
+float *reference_mem = NULL;
 
 /* accelerator configuration */
 XMyproject_axi accelerator;
@@ -56,12 +39,12 @@ XMyproject_axi_Config *accelerator_cfg;
 
 /* accelerator initialization routine */
 void init_accelerators() {
-    PRINTF("INFO: Initializing accelerator\n\r");
+    PRINTF("INFO: Initializing accelerator\r\n");
     accelerator_cfg = XMyproject_axi_LookupConfig(XPAR_MYPROJECT_AXI_0_DEVICE_ID);
     if (accelerator_cfg) {
         int status  = XMyproject_axi_CfgInitialize(&accelerator, accelerator_cfg);
         if (status != XST_SUCCESS) {
-            PRINTF("ERROR: Initializing accelerator\n\r");
+            PRINTF("ERROR: Initializing accelerator\r\n");
         }
     }
 }
@@ -98,7 +81,7 @@ double get_elapsed_time(XTime start, XTime stop) {
 
 /* dump data to the console */
 void dump_data(const char* label, float* data, unsigned n_samples, unsigned feature_count) {
-	PRINTF("INFO:   %s[%u][%u]:\n\r", label, n_samples, feature_count);
+	PRINTF("INFO:   %s[%u][%u]:\r\n", label, n_samples, feature_count);
     /* print at most MAX_PRINT_ELEMENTS */
     for (unsigned i = 0; i < n_samples && i < MAX_PRINT_ELEMENTS; i++) {
     	PRINTF("INFO:     [%u] ", i);
@@ -125,10 +108,10 @@ int main(int argc, char** argv) {
     /* initialize platform (uart and caches) */
     init_platform();
 
-    PRINTF("\n\r");
-    PRINTF("INFO: ===============================================\n\r");
-    PRINTF("INFO: "ACC_NAME" (w/ polling)\n\r");
-    PRINTF("INFO: ===============================================\n\r");
+    PRINTF("\r\n");
+    PRINTF("INFO: ==================================================\r\n");
+    PRINTF("INFO: XMyproject_axi (w/ polling)\r\n");
+    PRINTF("INFO: ==================================================\r\n");
 
     init_accelerators();
 
@@ -141,50 +124,44 @@ int main(int argc, char** argv) {
     sleep(1);
     XTime_GetTime(&stop);
     calibration_time = get_elapsed_time(start, stop);
-    PRINTF("INFO: Time calibration for one second (%lf sec)\n\r", calibration_time);
+    PRINTF("INFO: Time calibration for one second (%lf sec)\r\n", calibration_time);
 
     /* initialize memory */
-    PRINTF("INFO: Initialize memory\n\r");
-    PRINTF("INFO:   - Samples count: %u\n\r", N_SAMPLES); /* Same as dst_SAMPLE_COUNT */
-    PRINTF("INFO:   - Inputs count: %u\n\r", N_X_INPUTS);
-    PRINTF("INFO:   - Outputs count: %u\n\r", N_Y_OUTPUTS);
-    PRINTF("INFO:   - Data size: %u B\n\r", sizeof(float));
-    PRINTF("INFO:   - Total input size: %u B, %.2f KB, %.2f MB\n\r", N_X_INPUTS * N_SAMPLES * sizeof(float), (N_X_INPUTS * N_SAMPLES * sizeof(float)) / (float)1024, (N_X_INPUTS * N_SAMPLES * sizeof(float)) / (float)(1024*1024));
-    PRINTF("INFO:   - Total output size: %u B, %.2f KB, %.2f MB\n\r", N_Y_OUTPUTS * N_SAMPLES * sizeof(float), (N_Y_OUTPUTS * N_SAMPLES * sizeof(float)) / (float)1024, (N_Y_OUTPUTS * N_SAMPLES * sizeof(float)) / (float)(1024*1024));
+    PRINTF("INFO: Initialize memory\r\n");
+    PRINTF("INFO:   - Samples count: %u\r\n", N_SAMPLES); /* Same as dst_SAMPLE_COUNT */
+    PRINTF("INFO:   - Inputs count: %u\r\n", N_X_INPUTS);
+    PRINTF("INFO:   - Outputs count: %u\r\n", N_Y_OUTPUTS);
+    PRINTF("INFO:   - Data size: %u B\r\n", sizeof(float));
+    PRINTF("INFO:   - Total input size: %u B, %.2f KB, %.2f MB\r\n", N_X_INPUTS * N_SAMPLES * sizeof(float), (N_X_INPUTS * N_SAMPLES * sizeof(float)) / (float)1024, (N_X_INPUTS * N_SAMPLES * sizeof(float)) / (float)(1024*1024));
+    PRINTF("INFO:   - Total output size: %u B, %.2f KB, %.2f MB\r\n", N_Y_OUTPUTS * N_SAMPLES * sizeof(float), (N_Y_OUTPUTS * N_SAMPLES * sizeof(float)) / (float)1024, (N_Y_OUTPUTS * N_SAMPLES * sizeof(float)) / (float)(1024*1024));
 
     // Set Heap Size in ldscript.ld to 0x1000000 (16MB)
     //malloc_stats();
 
     for (int i = 0; i < INPUT_N_ELEMENTS; i++) {
-        inputs_mem[i] = src_data[i];
+        inputs_mem[i] = data_X_inputs[i];
     }
     for (int i = 0; i < OUTPUT_N_ELEMENTS; i++) {
-        reference_mem[i] = dst_data[i];
+        reference_mem[i] = data_y_hls_outputs[i];
+        //reference_mem[i] = data_y_keras_outputs[i];
+        //reference_mem[i] = data_y_outputs[i];
         outputs_mem[i] = 0x0;
     }
 
     /* ****** SOFTWARE REFERENCE ****** */
-#ifdef __DEBUG__
-    PRINTF("INFO: Start SW accelerator\n\r");
-#endif
+    PRINTF("INFO: ==================================================\r\n");
+    PRINTF("INFO: Start SW reference implementation\r\n");
     XTime_GetTime(&start);
-
     accelerator_sw(inputs_mem, reference_mem, INPUT_N_ELEMENTS, OUTPUT_N_ELEMENTS);
     XTime_GetTime(&stop);
     sw_elapsed = get_elapsed_time(start, stop);
-
-#ifdef __DEBUG__
-    PRINTF("INFO: Number of accelerator invocations: %u\n\r", N_SAMPLES);
-#endif
-#if 1
-    /* ****** ACCELERATOR ****** */
-    PRINTF("INFO: Press any key to start the accelerator: ");
+    PRINTF("INFO: ==================================================\r\n");
+    PRINTF("INFO: Press any key to start:\r\n");
     dummy = inbyte();
-    PRINTF("\n\rINFO: \n\r");
+    //PRINTF("INFO:");
 
-#ifdef __DEBUG__
-    PRINTF("INFO: Configure and start accelerator\n\r");
-#endif
+    /* ****** ACCELERATOR ****** */
+    PRINTF("INFO: Start HW accelerator\r\n");
 
     XTime_GetTime(&start);
     Xil_DCacheFlushRange((UINTPTR)inputs_mem, INPUT_N_ELEMENTS * sizeof(float));
@@ -218,43 +195,38 @@ int main(int argc, char** argv) {
     XTime_GetTime(&stop);
     cache_elapsed += get_elapsed_time(start, stop);
 
-    PRINTF("INFO: Accelerator done!");
+    PRINTF("INFO: HW accelerator done!\r\n");
 
     /* ****** VALIDATION ****** */
-
+    PRINTF("INFO: ================== Verification ==================\r\n");
 #ifdef __DEBUG__
-    PRINTF("INFO: ================== Validation =================\n\r");
-    PRINTF("INFO: Dump data\n\r");
+    PRINTF("INFO: Dump data\r\n");
     dump_data("inputs_mem", inputs_mem, N_SAMPLES, N_X_INPUTS);
     dump_data("outputs_mem", outputs_mem, N_SAMPLES, N_Y_OUTPUTS);
     dump_data("reference_mem", reference_mem, N_SAMPLES, N_Y_OUTPUTS);
 #endif
 
-    PRINTF("INFO: Software execution time: %f sec\n\r", sw_elapsed);
-
-    PRINTF("INFO: Total acceleration execution time (%d inferences): %f sec\n\r", N_SAMPLES, hw_elapsed);
-    PRINTF("INFO: Per-inference execution time (average): %.12f sec (%f ns)\n\r", hw_elapsed / (N_SAMPLES), (hw_elapsed*1000.0) / (N_SAMPLES));
-    PRINTF("INFO: Cache flush time: %f sec\n\r", cache_elapsed);
-    PRINTF("INFO: Accelerator/software speedup (the software is fake so this does not count...): %.2f X\n\r", (sw_elapsed >= (hw_elapsed+cache_elapsed))?(sw_elapsed/(hw_elapsed+cache_elapsed)):-((hw_elapsed+cache_elapsed)/sw_elapsed));
+    PRINTF("INFO: SW execution time: %f sec\r\n", sw_elapsed);
+    PRINTF("INFO: Total HW-acceleration execution time (%d inferences): %f sec\r\n", N_SAMPLES, hw_elapsed);
+    PRINTF("INFO: Per-inference HW-acceleration execution time (average): %.12f sec (%f ns)\r\n", hw_elapsed / (N_SAMPLES), (hw_elapsed*1000.0) / (N_SAMPLES));
+    PRINTF("INFO: Cache flush time: %f sec\r\n", cache_elapsed);
+    PRINTF("INFO: HW/SW speedup (the software is fake so this does not count...): %.2f X\r\n", (sw_elapsed >= (hw_elapsed+cache_elapsed))?(sw_elapsed/(hw_elapsed+cache_elapsed)):-((hw_elapsed+cache_elapsed)/sw_elapsed));
 
     /* Accelerator validation */
     hw_errors = 0;
-#if 1
     for (int i = 0; i < OUTPUT_N_ELEMENTS; i++) {
         if (outputs_mem[i] != reference_mem[i]) {
-            PRINTF("ERROR: [%d]: Accelerator hw %f != sw %f\n\r", i, outputs_mem[i], reference_mem[i]);
+            PRINTF("ERROR: [%d]: Accelerator HW %f != SW %f\r\n", i, outputs_mem[i], reference_mem[i]);
             hw_errors++;
         }
     }
-    PRINTF("INFO: Total errors = %d (out of %d elements)\n\r", hw_errors, OUTPUT_N_ELEMENTS);
+    PRINTF("INFO: Total errors = %d (out of %d elements)\r\n", hw_errors, OUTPUT_N_ELEMENTS);
     if (hw_errors > 0)
-        PRINTF("INFO: Accelerator validation: FAIL\n\r");
+        PRINTF("INFO: Verification: FAIL\r\n");
     else
-        PRINTF("INFO: Accelerator validation: PASS!\n\r");
-#endif
-    PRINTF("INFO: Validation done!\n\r");
-#endif
-    PRINTF("INFO: ===============================================\n\r");
+        PRINTF("INFO: Verification: PASS!\r\n");
+
+    PRINTF("INFO: ==================================================\r\n");
 
     cleanup_platform();
 

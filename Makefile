@@ -9,6 +9,9 @@ run-profile:
 	python test_vivado_accelerator.py profile
 .PHONY: run-profile	
 
+vivado-gui:
+	vivado ./test_backend_with_tb_axi_master/myproject_vivado_accelerator/project_1.xpr
+.PHONY: vivado-gui
 
 clean:
 	rm -f classes.npy
@@ -27,4 +30,9 @@ clean:
 	rm -f *.jou
 	rm -f *.str
 	rm -rf NA
+	make -C sdk clean
 .PHONY: clean
+
+ultraclean: clean
+	make -C sdk ultraclean
+.PHONY: ultraclean
