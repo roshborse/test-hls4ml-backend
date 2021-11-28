@@ -14,7 +14,7 @@ A few notes
 - The backend flow should be controlled from [here](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_vivado_accelerator.py#L111-L112)
 - [This](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_vivado_accelerator.py#L119-L161) _generator function_ is a draft. It should be general enough to support various models in the future.
 - [This call](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_vivado_accelerator.py#L163) has to be embedded in the backend generation flow (not at the topo level)
-- The [sdk](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/tree/main/sdk) directory has to be generated on the fly, right now it is hardcoded at top level.
+- ~The [sdk](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/tree/main/sdk) directory has to be generated on the fly, right now it is hardcoded at top level.~
 - In the reference hls4ml fork and branch, the write driver is currently [disabled](https://github.com/GiuseppeDiGuglielmo/hls4ml/blob/gdg/axi-m/hls4ml/writer/vivado_accelerator_writer.py#L346)
 
 ## Profile the Model

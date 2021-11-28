@@ -111,7 +111,7 @@ hls_model = convert_from_keras_model(model=model,
                                      driver='c',
                                      input_data_tb='X_test.npy',
                                      output_data_tb='y_qkeras.npy',
-                                     hls_config=hls_config, output_dir='test_backend_with_tb_axi_master')
+                                     hls_config=hls_config, output_dir='axi_m_backend')
 
 _ = hls_model.compile()
 
@@ -150,8 +150,8 @@ else:
             header_file.write('\n')
         header_file.write('};\n')
         header_file.write('\n')
-        header_file.write('#define N_Y_OUTPUTS {}\n'.format(n_y_outputs))
         header_file.write('/* Ground truth - for validation */\n')
+        header_file.write('#define N_Y_OUTPUTS {}\n'.format(n_y_outputs))
         header_file.write('const float data_y_outputs[N_SAMPLES*N_Y_OUTPUTS] = {\n')
         for s in range(n_samples):
             header_file.write('    ')
@@ -184,8 +184,8 @@ else:
         header_file.write('#endif\n')
         header_file.close()
     
-    write_header_file(X_test, y_test, y_keras, y_hls, 8, 'sdk/common/data.h')
+    write_header_file(X_test, y_test, y_keras, y_hls, 64, 'axi_m_backend/sdk/common/data.h')
     
-    hls4ml.report.read_vivado_report('test_backend_with_tb_axi_master/')
+    hls4ml.report.read_vivado_report('axi_m_backend/')
     
     hls4ml.templates.VivadoAcceleratorBackend.make_bitfile(hls_model)
