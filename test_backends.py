@@ -127,64 +127,8 @@ if len(sys.argv) == 2 and sys.argv[1] == 'profile':
     print('-----------------------------------')
 else:
     hls_model.build(csim=False, synth=True, export=True)
-
-    # Write inference data in a header file for baremetal application 
-    def write_header_file(X, y, y_keras, y_hls, n_samples, filename='data.h'):
-        header_file = open(filename, 'w')
-        (n_X_samples, n_X_inputs) = X.shape
-        (n_y_samples, n_y_outputs) = y.shape
-        (n_y_keras_samples, n_y_keras_outputs) = y_keras.shape
-        (n_y_hls_samples, n_y_hls_outputs) = y_hls.shape
-   
-        header_file.write('#ifndef __DATA_H__\n')
-        header_file.write('#define __DATA_H__\n')
-        header_file.write('/* ouf of {} */\n'.format(n_X_samples))
-        header_file.write('#define N_SAMPLES {}\n'.format(n_samples))
-        header_file.write('\n')
-        header_file.write('#define N_X_INPUTS {}\n'.format(n_X_inputs))
-        header_file.write('const float data_X_inputs[N_SAMPLES*N_X_INPUTS] = {\n')
-        for s in range(n_samples):
-            header_file.write('    ')
-            for i in range(n_X_inputs):
-                header_file.write('{}, '.format(X[s][i]))
-            header_file.write('\n')
-        header_file.write('};\n')
-        header_file.write('\n')
-        header_file.write('/* Ground truth - for validation */\n')
-        header_file.write('#define N_Y_OUTPUTS {}\n'.format(n_y_outputs))
-        header_file.write('const float data_y_outputs[N_SAMPLES*N_Y_OUTPUTS] = {\n')
-        for s in range(n_samples):
-            header_file.write('    ')
-            for o in range(n_y_outputs):
-                header_file.write('{}, '.format(y[s][o]))
-            header_file.write('\n')
-        header_file.write('};\n')
-        header_file.write('\n')
-        header_file.write('/* Keras outputs - for validation */\n')
-        header_file.write('#define N_Y_KERAS_OUTPUTS {}\n'.format(n_y_keras_outputs))
-        header_file.write('')
-        header_file.write('const float data_y_keras_outputs[N_SAMPLES*N_Y_KERAS_OUTPUTS] = {\n')
-        for s in range(n_samples):
-            header_file.write('    ')
-            for o in range(n_y_keras_outputs):
-                header_file.write('{}, '.format(y_keras[s][o]))
-            header_file.write('\n')
-        header_file.write('};\n')
-        header_file.write('\n')
-        header_file.write('/* csim outputs - for verification */\n')
-        header_file.write('#define N_Y_HLS_OUTPUTS {}\n'.format(n_y_hls_outputs))
-        header_file.write('')
-        header_file.write('const float data_y_hls_outputs[N_SAMPLES*N_Y_HLS_OUTPUTS] = {\n')
-        for s in range(n_samples):
-            header_file.write('    ')
-            for o in range(n_y_hls_outputs):
-                header_file.write('{}, '.format(y_hls[s][o]))
-            header_file.write('\n')
-        header_file.write('};\n')
-        header_file.write('#endif\n')
-        header_file.close()
     
-    write_header_file(X_test, y_test, y_keras, y_hls, 64, 'axi_m_backend/sdk/common/data.h')
+    hls4ml.writer.vivado_accelerator_writer.VivadoAcceleratorWriter.write_header_file(X_test, y_test, y_keras, y_hls, 64, 'axi_m_backend/sdk/common/data.h')
     
     hls4ml.report.read_vivado_report('axi_m_backend/')
     

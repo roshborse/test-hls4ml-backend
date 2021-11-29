@@ -1,7 +1,7 @@
 *.npy
 __pycache__
 *.tar.gz
-test_backend_with_tb_axi_master
+axi_m_backend
 NA
 *.jou
 *.log

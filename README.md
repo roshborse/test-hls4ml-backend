@@ -11,11 +11,11 @@ pip install git+https://github.com/GiuseppeDiGuglielmo/hls4ml.git@gdg/axi-m#egg=
 ```
 
 A few notes
-- The backend flow should be controlled from the function [`convert_from_keras_model`](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_backends.py#L110-L111)
-- [This](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_vivado_accelerator.py#L119-L161) _generator function_ is a draft. It should be general enough to support various models in the future.
-- [This call](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_vivado_accelerator.py#L163) has to be embedded in the backend generation flow (not at the topo level)
+- The backend flow _should be_ controlled from the function [`convert_from_keras_model`](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_backends.py#L110-L111).
+- The function [`write_header_file`](https://github.com/GiuseppeDiGuglielmo/hls4ml/blob/gdg/axi-m/hls4ml/writer/vivado_accelerator_writer.py#L330-L384) in hls4ml is a draft. It should be general enough to support various models in the future.
+- [This call](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_backends.py#L131) has to be embedded in the hls4ml backend generation flow (not at the top level).
 - ~The [sdk](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/tree/main/sdk) directory has to be generated on the fly, right now it is hardcoded at top level.~
-- In the reference hls4ml fork and branch, the write driver is currently [disabled](https://github.com/GiuseppeDiGuglielmo/hls4ml/blob/gdg/axi-m/hls4ml/writer/vivado_accelerator_writer.py#L346)
+- ~In the reference hls4ml fork and branch, the write driver is currently [disabled](https://github.com/GiuseppeDiGuglielmo/hls4ml/blob/gdg/axi-m/hls4ml/writer/vivado_accelerator_writer.py#L346).~
 
 ## Profile the Model
 ```
