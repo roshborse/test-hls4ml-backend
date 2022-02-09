@@ -1,4 +1,7 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+import os
 import sys
 import numpy as np
 from hls4ml.converters import convert_from_keras_model
@@ -16,7 +19,21 @@ from callbacks import all_callbacks
 
 os.environ['PATH'] = '/tools/Xilinx/Vivado/2019.1/bin:' + os.environ['PATH']
 
+DATA_DIR = 'npy'
+MODEL_DIR = 'model'
+
+#BOARD_NAME = 'pynq-z1'
+#FPGA_PART = 'xc7z020clg400-1'
+
+BOARD_NAME = 'arty-a7-100t'
+FPGA_PART = 'xc7a100tcsg324-1'
+
+CLOCK_PERIOD = 10
+
+#
 # Load and scale dataset
+#
+print("Load and scale dataset")
 data = fetch_openml('hls4ml_lhc_jets_hlf')
 X, y = data['data'], data['target']
 le = LabelEncoder()
@@ -26,11 +43,14 @@ X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.2,
 scaler = StandardScaler()
 X_train_val = scaler.fit_transform(X_train_val)
 X_test = scaler.transform(X_test)
-np.save('y_test.npy', y_test)
-np.save('X_test.npy', X_test)
-np.save('classes.npy', le.classes_, allow_pickle=True)
+np.save(DATA_DIR + '/y_test.npy', y_test)
+np.save(DATA_DIR + '/X_test.npy', X_test)
+np.save(DATA_DIR + '/classes.npy', le.classes_, allow_pickle=True)
 
+#
 # Model
+#
+print("Create model")
 model = Sequential()
 model.add(QDense(64, input_shape=(16,), name='fc1',
                  kernel_quantizer=quantized_bits(6,0,alpha=1), bias_quantizer=quantized_bits(6,0,alpha=1),
@@ -49,13 +69,15 @@ model.add(QDense(5, name='output',
                  kernel_initializer='lecun_uniform', kernel_regularizer=l1(0.0001)))
 model.add(Activation(activation='softmax', name='softmax'))
 
-# Training
+#
+# Training (or loading model)
+#
 from tensorflow_model_optimization.python.core.sparsity.keras import prune, pruning_callbacks, pruning_schedule
 from tensorflow_model_optimization.sparsity.keras import strip_pruning
 pruning_params = {'pruning_schedule' : pruning_schedule.ConstantSparsity(0.75, begin_step=2000, frequency=100)}
 model = prune.prune_low_magnitude(model, **pruning_params)
 
-train = not os.path.exists('model/KERAS_check_best_model.h5')
+train = not os.path.exists(MODEL_DIR + '/model.h5')
 if train:
     adam = Adam(lr=0.0001)
     model.compile(optimizer=adam, loss=['categorical_crossentropy'], metrics=['accuracy'])
@@ -70,23 +92,30 @@ if train:
     model.fit(X_train_val, y_train_val, batch_size=1024,
               epochs=30, validation_split=0.25, shuffle=True,
               callbacks = callbacks.callbacks)
+    print("Save model in 'model/model.h5'")
     # Save the model again but with the pruning 'stripped' to use the regular layer types
     model = strip_pruning(model)
-    if not os.path.isdir('model'): 
-        os.mkdir('model')
-    model.save('model/KERAS_check_best_model.h5')
+    if not os.path.isdir(MODEL_DIR): 
+        os.mkdir(MODEL_DIR)
+    model.save(MODEL_DIR + '/model.h5')
 else:
     from tensorflow.keras.models import load_model
     from qkeras.utils import _add_supported_quantized_objects
     co = {}
     _add_supported_quantized_objects(co)
-    model = load_model('model/KERAS_check_best_model.h5', custom_objects=co)
+    print("Load model from " + MODEL_DIR + '/model.h5')
+    model = load_model(MODEL_DIR + '/model.h5', custom_objects=co)
 
-# Prediction
+#
+# TF prediction
+#
+print("Run prediction")
 y_keras = model.predict(X_test)
-np.save('y_qkeras.npy', y_keras)
+np.save(DATA_DIR + '/y_qkeras.npy', y_keras)
 
+#
 # hls4ml
+#
 import hls4ml
 hls4ml.model.optimizer.OutputRoundingSaturationMode.layers = ['Activation']
 hls4ml.model.optimizer.OutputRoundingSaturationMode.rounding_mode = 'AP_RND'
@@ -100,18 +129,21 @@ hls_config['Model']['Precision'] = 'ap_fixed<16,6>'
 hls_config['LayerName']['fc1']['ReuseFactor'] = 64
 hls_config['LayerName']['fc2']['ReuseFactor'] = 64
 hls_config['LayerName']['fc3']['ReuseFactor'] = 64
-input_data = os.path.join(os.getcwd(), 'X_test.npy')
-output_predictions = os.path.join(os.getcwd(), 'y_qkeras.npy')
+input_data = os.path.join(os.getcwd(), DATA_DIR + '/X_test.npy')
+output_predictions = os.path.join(os.getcwd(), DATA_DIR + '/y_qkeras.npy')
 
-hls_model = convert_from_keras_model(model=model, 
+hls_model = convert_from_keras_model(model=model,
+                                     clock_period=CLOCK_PERIOD,
                                      backend='VivadoAccelerator',
-                                     board='pynq-z1',
+                                     board=BOARD_NAME,
+                                     part=FPGA_PART,
                                      io_type='io_stream',
                                      interface='axi_master',
                                      driver='c',
-                                     input_data_tb='X_test.npy',
-                                     output_data_tb='y_qkeras.npy',
-                                     hls_config=hls_config, output_dir='axi_m_backend')
+                                     input_data_tb=DATA_DIR+'/X_test.npy',
+                                     output_data_tb=DATA_DIR+'/y_qkeras.npy',
+                                     hls_config=hls_config,
+                                     output_dir=BOARD_NAME+'_axi_m_backend')
 
 _ = hls_model.compile()
 
@@ -126,10 +158,14 @@ if len(sys.argv) == 2 and sys.argv[1] == 'profile':
     print('hls4ml Accuracy: {}'.format(accuracy_score(np.argmax(y_test, axis=1), np.argmax(y_hls, axis=1))))
     print('-----------------------------------')
 else:
+    # When building please remember to package and export the IP
     hls_model.build(csim=False, synth=True, export=True)
-    
-    hls4ml.writer.vivado_accelerator_writer.VivadoAcceleratorWriter.write_header_file(X_test, y_test, y_keras, y_hls, 64, 'axi_m_backend/sdk/common/data.h')
-    
-    hls4ml.report.read_vivado_report('axi_m_backend/')
-    
+
+    # Write header files with hardcoded data set
+    hls4ml.writer.vivado_accelerator_writer.VivadoAcceleratorWriter.write_header_file(X_test, y_test, y_keras, y_hls, 64, BOARD_NAME + '_axi_m_backend/sdk/common/data.h')
+
+    # 
+    hls4ml.report.read_vivado_report(BOARD_NAME + '_axi_m_backend/')
+
+    # Generate bitstream and HDF file
     hls4ml.templates.VivadoAcceleratorBackend.make_bitfile(hls_model)

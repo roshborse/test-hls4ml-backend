@@ -19,11 +19,17 @@ vivado-gui:
 clean:
 	rm -rf training_dir
 	rm -rf __pycache__
-	rm -rf axi_m_backend
-	rm -f axi_m_backend.tar.gz
+	rm -rf *axi_m_backend
+	rm -f *axi_m_backend.tar.gz
 	rm -f *.npy
 	rm -f *.log
 	rm -f *.jou
 	rm -f *.str
+	rm -rf *.idea
 	rm -rf NA
+.PHONY: clean
+
+ultraclean: clean
+	rm -f model/*.h5
+	rm -f npy/*.npy
 .PHONY: clean
