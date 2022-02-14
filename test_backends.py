@@ -28,6 +28,9 @@ MODEL_DIR = 'model'
 BOARD_NAME = 'arty-a7-100t'
 FPGA_PART = 'xc7a100tcsg324-1'
 
+#BOARD_NAME = 'ultra96v2'
+#FPGA_PART = 'xczu3eg-sbva484-1-e'
+
 CLOCK_PERIOD = 10
 
 #
