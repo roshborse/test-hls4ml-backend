@@ -5,8 +5,9 @@ This is a workspace for testing the integration of the Vivado Accelerator AXI-ma
 The _hls4ml_ fork and branch that we use in this workspace is ~https://github.com/GiuseppeDiGuglielmo/hls4ml/tree/gdg/axi-m~ https://github.com/hls4ml-finn-mlperftiny/hls4ml/tree/fifo_depth_opt
 ```
 conda env create -f environment.yml
+conda activate hls4ml-vivado-accelerator
 pip install qkeras==0.9.0
-#pip uninstall hls4ml
+pip uninstall hls4ml
 pip install git+https://github.com/hls4ml-finn-mlperftiny/hls4ml.git@fifo_depth_opt#egg=hls4ml[profiling]
 ```
 
