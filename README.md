@@ -13,7 +13,7 @@ pip install git+https://github.com/hls4ml-finn-mlperftiny/hls4ml.git@fifo_depth_
 
 A few notes
 - Please notice the changes and additions:
-  - [`convert_from_keras_model`](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_backends.py#L135-L146)
+  - [`convert_from_keras_model`](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_backends.py#L138-L149)
   - [`write_header_file`](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_backends.py#L165)
 - In particular, the function [`write_header_file`](https://github.com/hls4ml-finn-mlperftiny/hls4ml/blob/fifo_depth_opt/hls4ml/writer/vivado_accelerator_writer.py#L350-L403) in hls4ml is a draft. It should be general enough to support various models in the future.
 - The [call](https://github.com/GiuseppeDiGuglielmo/test-hls4ml-backend/blob/main/test_backends.py#L165) of the same function has to be embedded in the hls4ml backend generation flow (not at the top level).
