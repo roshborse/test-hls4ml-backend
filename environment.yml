@@ -1,4 +1,4 @@
-name: hls4ml-vivado-accelerator-m-axi
+name: hls4ml-vivado-accelerator
 channels:
   - defaults
 dependencies:
