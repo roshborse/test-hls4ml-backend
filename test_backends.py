@@ -132,6 +132,8 @@ hls_config['LayerName']['fc3']['ReuseFactor'] = 64
 input_data = os.path.join(os.getcwd(), DATA_DIR + '/X_test.npy')
 output_predictions = os.path.join(os.getcwd(), DATA_DIR + '/y_qkeras.npy')
 
+hls_config['SkipOptimizers'] = ['relu_merge']
+
 hls_model = convert_from_keras_model(model=model,
                                      clock_period=CLOCK_PERIOD,
                                      backend='VivadoAccelerator',
@@ -164,7 +166,7 @@ else:
     # Write header files with hardcoded data set
     hls4ml.writer.vivado_accelerator_writer.VivadoAcceleratorWriter.write_header_file(X_test, y_test, y_keras, y_hls, 64, BOARD_NAME + '_axi_m_backend/sdk/common/data.h')
 
-    # 
+    #
     hls4ml.report.read_vivado_report(BOARD_NAME + '_axi_m_backend/')
 
     # Generate bitstream and HDF file
