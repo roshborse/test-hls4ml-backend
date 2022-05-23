@@ -17,7 +17,7 @@ from qkeras.qlayers import QDense, QActivation
 from qkeras.quantizers import quantized_bits, quantized_relu
 from callbacks import all_callbacks
 
-os.environ['PATH'] = '/tools/Xilinx/Vivado/2019.1/bin:' + os.environ['PATH']
+os.environ['PATH'] = '/home/bcilab/Xilinx/Vivado/2019.1/bin:' + os.environ['PATH']
 
 DATA_DIR = 'npy'
 MODEL_DIR = 'model'
@@ -25,11 +25,11 @@ MODEL_DIR = 'model'
 #BOARD_NAME = 'pynq-z1'
 #FPGA_PART = 'xc7z020clg400-1'
 
-BOARD_NAME = 'arty-a7-100t'
-FPGA_PART = 'xc7a100tcsg324-1'
+#BOARD_NAME = 'arty-a7-100t'
+#FPGA_PART = 'xc7a100tcsg324-1'
 
-#BOARD_NAME = 'ultra96v2'
-#FPGA_PART = 'xczu3eg-sbva484-1-e'
+BOARD_NAME = 'ultra96v2'
+FPGA_PART = 'xczu3eg-sbva484-1-i'
 
 CLOCK_PERIOD = 10
 
@@ -143,7 +143,7 @@ hls_model = convert_from_keras_model(model=model,
                                      board=BOARD_NAME,
                                      part=FPGA_PART,
                                      io_type='io_stream',
-                                     interface='axi_master',
+                                     interface='axi_stream',
                                      driver='c',
                                      input_data_tb=DATA_DIR+'/X_test.npy',
                                      output_data_tb=DATA_DIR+'/y_qkeras.npy',
